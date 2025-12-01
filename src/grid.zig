@@ -32,14 +32,6 @@ pub const Point = struct {
     }
 };
 
-/// A cardinal direction.
-pub const Dir = enum {
-    u,
-    d,
-    l,
-    r,
-};
-
 pub const Error = error{
     Dimensions,
     OutOfBounds,
