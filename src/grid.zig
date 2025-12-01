@@ -170,6 +170,16 @@ pub fn Grid(comptime T: type) type {
                 .lo = 0,
             };
         }
+
+        /// Get the row at index `y`, or `null` if out of bounds.
+        pub fn row(self: Self, y: usize) ?[]T {
+            if (y >= self.height) {
+                return null;
+            }
+
+            const start = y * self.width;
+            return self.items[start .. start + self.width];
+        }
     };
 }
 
@@ -332,4 +342,23 @@ test "rows" {
 
     const end = iter.next();
     try std.testing.expectEqual(null, end);
+}
+
+test "row" {
+    var r = Reader.fixed(
+        \\abcd
+        \\efgh
+    );
+
+    var grid = try read(&r, std.testing.allocator);
+    defer grid.deinit(std.testing.allocator);
+
+    const r0 = grid.row(0).?;
+    try std.testing.expectEqualStrings("abcd", r0);
+
+    const r1 = grid.row(1).?;
+    try std.testing.expectEqualStrings("efgh", r1);
+
+    const r2 = grid.row(2);
+    try std.testing.expectEqual(null, r2);
 }
