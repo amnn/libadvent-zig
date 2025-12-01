@@ -7,7 +7,7 @@ const mem = std.mem;
 
 const Reader = std.io.Reader;
 
-const Error = error{
+pub const Error = error{
     NoMatch,
 };
 

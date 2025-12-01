@@ -35,7 +35,7 @@ pub const Dir = enum {
     r,
 };
 
-const Error = error{
+pub const Error = error{
     Dimensions,
     OutOfBounds,
 };
