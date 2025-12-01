@@ -40,6 +40,32 @@ pub const Error = error{
     OutOfBounds,
 };
 
+fn FindIter(comptime T: type) type {
+    return struct {
+        grid: Grid(T),
+        elem: T,
+        idx: usize,
+
+        const Self = @This();
+
+        pub fn next(self: *Self) ?Point {
+            while (self.idx < self.grid.items.len) {
+                const idx = self.idx;
+                self.idx += 1;
+
+                const item = self.grid.items[idx];
+                if (item == self.elem) {
+                    const x = idx % self.grid.width;
+                    const y = idx / self.grid.width;
+                    return .pt(x, y);
+                }
+            } else {
+                return null;
+            }
+        }
+    };
+}
+
 fn RowIter(comptime T: type) type {
     return struct {
         grid: Grid(T),
@@ -124,6 +150,20 @@ pub fn Grid(comptime T: type) type {
             self.items[pt.y * self.width + pt.x] = value;
         }
 
+        /// Find all occurrences of `elem` in the grid.
+        ///
+        /// Returns an iterator over the points where `elem` is found.
+        pub fn find(self: Self, elem: T) FindIter(T) {
+            return FindIter(T){
+                .grid = self,
+                .elem = elem,
+                .idx = 0,
+            };
+        }
+
+        /// Iterate over each row of the grid.
+        ///
+        /// Rows are returned as slices of `T`.
         pub fn rows(self: Self) RowIter(T) {
             return RowIter(T){
                 .grid = self,
@@ -245,6 +285,33 @@ test "put and get" {
     try std.testing.expectEqual('1', grid.get(.pt(0, 0)).?);
     try grid.put(.pt(0, 0), 'A');
     try std.testing.expectEqual('A', grid.get(.pt(0, 0)).?);
+}
+
+test "find" {
+    var r = Reader.fixed(
+        \\121
+        \\232
+        \\121
+    );
+
+    var grid = try read(&r, std.testing.allocator);
+    defer grid.deinit(std.testing.allocator);
+
+    var iter = grid.find('2');
+    const p0 = iter.next().?;
+    try std.testing.expectEqual(Point.pt(1, 0), p0);
+
+    const p1 = iter.next().?;
+    try std.testing.expectEqual(Point.pt(0, 1), p1);
+
+    const p2 = iter.next().?;
+    try std.testing.expectEqual(Point.pt(2, 1), p2);
+
+    const p3 = iter.next().?;
+    try std.testing.expectEqual(Point.pt(1, 2), p3);
+
+    const end = iter.next();
+    try std.testing.expectEqual(null, end);
 }
 
 test "rows" {
