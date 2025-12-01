@@ -17,12 +17,17 @@ pub const Point = struct {
     }
 
     /// Returns a new point moved in the given direction by the given steps.
-    pub fn move(self: Point, dir: Dir, steps: usize) ?Point {
-        return switch (dir) {
-            .u => .{ .x = self.x, .y = math.sub(usize, self.y, steps) catch return null },
-            .d => .{ .x = self.x, .y = math.add(usize, self.y, steps) catch return null },
-            .l => .{ .x = math.sub(usize, self.x, steps) catch return null, .y = self.y },
-            .r => .{ .x = math.add(usize, self.x, steps) catch return null, .y = self.y },
+    pub fn move(self: Point, dx: isize, dy: isize) ?Point {
+        return .{
+            .x = if (dx < 0)
+                math.sub(usize, self.x, @intCast(-dx)) catch return null
+            else
+                math.add(usize, self.x, @intCast(dx)) catch return null,
+
+            .y = if (dy < 0)
+                math.sub(usize, self.y, @intCast(-dy)) catch return null
+            else
+                math.add(usize, self.y, @intCast(dy)) catch return null,
         };
     }
 };
@@ -206,6 +211,17 @@ pub fn read(r: *Reader, a: Allocator) !Grid(u8) {
     }
 
     return try Grid(u8).init(width, try items.toOwnedSlice());
+}
+
+test "Point.move" {
+    const p: Point = .pt(2, 2);
+
+    try std.testing.expectEqual(p.move(-1, -1).?, Point.pt(1, 1));
+    try std.testing.expectEqual(p.move(2, 1).?, Point.pt(4, 3));
+    try std.testing.expectEqual(p.move(-2, -2).?, Point.pt(0, 0));
+    try std.testing.expectEqual(p.move(2, 2).?, Point.pt(4, 4));
+    try std.testing.expectEqual(p.move(-3, 0), null);
+    try std.testing.expectEqual(p.move(0, -3), null);
 }
 
 test "read" {
