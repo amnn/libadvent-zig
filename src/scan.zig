@@ -26,6 +26,14 @@ pub fn prefix(r: *Reader, expect: []const u8) !void {
     }
 }
 
+/// Read zero or more space characters from the front of `r`.
+///
+/// This operation always succeeds, but if `r` does not start with whitespace,
+/// it is left unchanged.
+pub fn spaces(r: *Reader) void {
+    while (prefix(r, " ")) {} else |_| {}
+}
+
 /// Try and read an unsigned decimal number from the front of `r`.
 ///
 /// If `r` starts with an unsigned decimal number, reads, parses, and returns
@@ -86,6 +94,13 @@ test "prefix" {
     try prefix(&r, "hello");
     try prefix(&r, " world");
     try std.testing.expectError(error.NoMatch, prefix(&r, "no more"));
+}
+
+test "whitespace" {
+    var r = Reader.fixed("   helloworld");
+    spaces(&r);
+    try prefix(&r, "hello");
+    try prefix(&r, "world");
 }
 
 test "decimalDigit" {
