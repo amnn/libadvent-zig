@@ -26,6 +26,21 @@ pub fn prefix(r: *Reader, expect: []const u8) !void {
     }
 }
 
+/// Try and read from the front of `r` until a `delim`eter byte is found
+///
+/// If `r` contains `delim`, consumes all bytes up to and including the
+/// first delimiter, and returns the bytes strictly before the delimiter.
+///
+/// If no delimiter is found, `r` is left unchanged and `error.NoMatch` is
+/// returned. If `r`'s buffer is not big enough to hold data before the
+/// delimiter, an error is returned.
+pub fn until(r: *Reader, delim: u8) ![]u8 {
+    const peeked = r.peekDelimiterInclusive(delim) catch return error.NoMatch;
+    const result = peeked[0 .. peeked.len - 1];
+    r.toss(peeked.len);
+    return result;
+}
+
 /// Read zero or more space characters from the front of `r`.
 ///
 /// This operation always succeeds, but if `r` does not start with whitespace,
@@ -88,7 +103,7 @@ pub fn @"enum"(comptime E: type, r: *Reader) !E {
     return error.NoMatch;
 }
 
-test "prefix" {
+test prefix {
     var r = Reader.fixed("hello world");
     try std.testing.expectError(error.NoMatch, prefix(&r, "goodbye"));
     try prefix(&r, "hello");
@@ -96,14 +111,22 @@ test "prefix" {
     try std.testing.expectError(error.NoMatch, prefix(&r, "no more"));
 }
 
-test "whitespace" {
+test until {
+    var r = Reader.fixed("key:value;rest");
+    try std.testing.expectEqualStrings("key", try until(&r, ':'));
+    try std.testing.expectEqualStrings("value", try until(&r, ';'));
+    try std.testing.expectError(error.NoMatch, until(&r, ','));
+    try std.testing.expectError(error.NoMatch, until(&r, ';'));
+}
+
+test spaces {
     var r = Reader.fixed("   helloworld");
     spaces(&r);
     try prefix(&r, "hello");
     try prefix(&r, "world");
 }
 
-test "decimalDigit" {
+test decimalDigit {
     var r = Reader.fixed("123abc");
     try std.testing.expectEqual(1, try decimalDigit(&r));
     try std.testing.expectEqual(2, try decimalDigit(&r));
@@ -112,7 +135,7 @@ test "decimalDigit" {
     try prefix(&r, "abc");
 }
 
-test "unsigned" {
+test unsigned {
     var r = Reader.fixed("4567xyz");
     try std.testing.expectEqual(4567, try unsigned(u32, &r));
     try std.testing.expectError(error.NoMatch, unsigned(u32, &r));
