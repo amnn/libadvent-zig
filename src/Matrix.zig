@@ -156,8 +156,11 @@ fn orderRows(self: *Self) !void {
 
 /// Put this matrix into row-echelon form, in-place, and return the list of
 /// free variables (columns where the pivot is missing).
+///
+/// Assumes that the last column of the matrix is the constants column, so not
+/// not tested as a pivot.
 pub fn rowEchelonForm(self: *const Self, a: Allocator) ![]usize {
-    const lim = @min(self.width(), self.height());
+    const lim = @min(self.width() - 1, self.height());
 
     var free: ArrayList(usize) = .{};
     errdefer free.deinit(a);
@@ -187,7 +190,7 @@ pub fn rowEchelonForm(self: *const Self, a: Allocator) ![]usize {
     }
 
     // Any variables that don't have pivots are also considered free.
-    for (lim..self.width()) |i| {
+    for (lim..self.width() - 1) |i| {
         try free.append(a, i);
     }
 
@@ -344,7 +347,7 @@ test "row echelon form" {
         defer a.free(free);
 
         try std.testing.expect(m.eql(n));
-        try std.testing.expectEqualSlices(usize, &[_]usize{ 3, 4, 5 }, free);
+        try std.testing.expectEqualSlices(usize, &[_]usize{ 3, 4 }, free);
     }
 
     {
@@ -374,7 +377,7 @@ test "row echelon form" {
         defer a.free(free);
 
         try std.testing.expect(m.eql(n));
-        try std.testing.expectEqualSlices(usize, &[_]usize{5}, free);
+        try std.testing.expectEqualSlices(usize, &[_]usize{}, free);
     }
 }
 
