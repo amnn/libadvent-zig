@@ -77,7 +77,7 @@ pub fn height(self: *const Self) usize {
 }
 
 /// Get a copy of the value at cell `(c, r)`.
-pub fn get(self: *Self, c: usize, r: usize) ?i64 {
+pub fn get(self: *const Self, c: usize, r: usize) ?i64 {
     const row_ = self.row(r) orelse return null;
     return if (c < self.cols) row_[c] else null;
 }
@@ -154,12 +154,18 @@ fn orderRows(self: *Self) !void {
     }.lessThan);
 }
 
-/// Put this matrix into row-echelon form, in-place, and return the list of
-/// free variables (columns where the pivot is missing).
+/// Run Gaussian Elimination on this augmented matrix, in-place.
+///
+/// Returns the list of free variables (columns where the pivot is missing),
+/// and updates the matrix so that the solution at every row can be framed as:
+///
+///   Xi = [Ki + ΣMjXj] / Mi
+///
+/// (An affine formula in terms of free variables).
 ///
 /// Assumes that the last column of the matrix is the constants column, so not
-/// not tested as a pivot.
-pub fn rowEchelonForm(self: *const Self, a: Allocator) ![]usize {
+/// tested as a pivot.
+pub fn gaussianElimination(self: *Self, a: Allocator) ![]usize {
     const lim = @min(self.width() - 1, self.height());
 
     var free: ArrayList(usize) = .{};
@@ -189,9 +195,33 @@ pub fn rowEchelonForm(self: *const Self, a: Allocator) ![]usize {
         }
     }
 
-    // Any variables that don't have pivots are also considered free.
+    // Any variables that don't have a row and a column are also free.
     for (lim..self.width() - 1) |i| {
         try free.append(a, i);
+    }
+
+    // Back propagate pivots, and normalize them all too have positive
+    // coefficients.
+    var i = lim;
+    while (i > 0) : (i -= 1) {
+        const pivot = self.get(i - 1, i - 1).?;
+        if (pivot == 0) continue;
+
+        for (0..i - 1) |r| {
+            const over = self.get(i - 1, r).?;
+            if (over == 0) continue;
+
+            const mult: i64 = @intCast(math.lcm(@abs(pivot), @abs(over)));
+            const p_fact = @divExact(mult, pivot);
+            const o_fact = @divExact(mult, over);
+
+            for (self.rowPtr(i - 1).?, self.rowPtr(r).?) |p, *o| {
+                o.* = o.* * o_fact - p * p_fact;
+            }
+        }
+
+        if (pivot > 0) continue;
+        for (self.rowPtr(i - 1).?) |*p| p.* *= -1;
     }
 
     return free.toOwnedSlice(a);
@@ -319,7 +349,7 @@ test "order rows mixed signs" {
     try std.testing.expect(m.eql(n));
 }
 
-test "row echelon form" {
+test "gaussian elimination" {
     const a = std.testing.allocator;
 
     {
@@ -327,14 +357,14 @@ test "row echelon form" {
             0, 0, 1, 1, 0, 145,
             1, 0, 1, 0, 1, 136,
             0, 0, 1, 1, 0, 145,
-            0, 1, 0, 0, 1, 5,
+            0, 1, 0, 0, 1,   5,
         };
 
         var nd = [_]i64{
-            1, 0, 1, 0, 1, 136,
-            0, 1, 0, 0, 1, 5,
-            0, 0, 1, 1, 0, 145,
-            0, 0, 0, 0, 0, 0,
+            1, 0, 0, -1, 1,  -9,
+            0, 1, 0,  0, 1,   5,
+            0, 0, 1,  1, 0, 145,
+            0, 0, 0,  0, 0,   0,
         };
 
         var m = try Self.new(a, 6, &md);
@@ -343,7 +373,7 @@ test "row echelon form" {
         var n = try Self.new(a, 6, &nd);
         defer n.deinit(a);
 
-        const free = try m.rowEchelonForm(a);
+        const free = try m.gaussianElimination(a);
         defer a.free(free);
 
         try std.testing.expect(m.eql(n));
@@ -360,11 +390,11 @@ test "row echelon form" {
         };
 
         var nd = [_]i64{
-            1, 1,  1, 1,  1,  79,
-            0, -1, 0, -1, -1, -40,
-            0, 0,  1, -1, 0,  8,
-            0, 0,  0, 2,  1,  37,
-            0, 0,  0, 0,  -1, -13,
+            2, 0, 0, 0, 0, 38,
+            0, 2, 0, 0, 0, 30,
+            0, 0, 2, 0, 0, 40,
+            0, 0, 0, 2, 0, 24,
+            0, 0, 0, 0, 1, 13,
         };
 
         var m = try Self.new(a, 6, &md);
@@ -373,7 +403,7 @@ test "row echelon form" {
         var n = try Self.new(a, 6, &nd);
         defer n.deinit(a);
 
-        const free = try m.rowEchelonForm(a);
+        const free = try m.gaussianElimination(a);
         defer a.free(free);
 
         try std.testing.expect(m.eql(n));
